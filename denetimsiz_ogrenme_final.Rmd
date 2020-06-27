@@ -1,0 +1,965 @@
+---
+title: "DSM 5008 DENETİMSİZ İSTATİSTİKSEL ÖĞRENME YARIYIL SONU DEĞERLENDİRME "
+author: "Simay UĞUR"
+date: "22 06 2020"
+output:
+  pdf_document: 
+    toc: True
+    toc_depth: 6
+    number_sections: true
+    fig_caption: true
+always_allow_html: true
+---
+
+\newpage 
+
+**KÜTÜPHANELER**
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+library(pastecs)
+library(ggfortify) # Data Visualization Tools for Statistical Analysis Results, CRAN v0.4.10
+library(clustertend) # Check the Clustering Tendency, CRAN v1.4
+library(clValid) # Validation of Clustering Results, CRAN v0.6-7
+library(NbClust) # Determining the Best Number of Clusters in a Data Set, CRAN v3.0
+require(corrplot)
+require(graphics)
+library(RColorBrewer)
+library(GGally) # Extension to 'ggplot2', CRAN v2.0.0
+library(knitr) # A General-Purpose Package for Dynamic Report Generation in R, CRAN v1.28
+
+library(psych) # Procedures for Psychological, Psychometric, and Personality Research, CRAN v1.9.12.31
+library(factoextra) # Extract and Visualize the Results of Multivariate Data Analyses, CRAN v1.0.7
+library(gridExtra) # Miscellaneous Functions for "Grid" Graphics, CRAN v2.3
+library(needs)
+needs(readr,
+      dplyr,
+      ggplot2,
+      corrplot,
+      gridExtra,
+      )
+library(dplyr)
+library(ggfortify) # Data Visualization Tools for Statistical Analysis Results
+library(NbClust) # Determining the Best Number of Clusters in a Data Set
+library(gridExtra)
+library(devtools)
+library(ggpubr)
+library(tidyverse) 
+library(pastecs)
+require(corrplot)
+require(graphics)
+library(RColorBrewer)
+library(factoextra)
+library(clValid)
+library(NbClust)
+library(mclust)
+library(cluster)    #kumeleme
+library(factoextra) #gorsel
+library(rstatix)
+```
+
+
+
+Amacımız ID değerlerinin kümelenmesidir.
+ 
+ Veri setinin diagnosis sutununda kanser teşhisi koyulan kişilerin tümörlerinin huyu belirtilmiştir.
+ 
+ Üçüncü sütundan on ikinci sütuna kadar olan değerler ise aşağıda belirtilen değerlerin ortalamasıdır.
+ 
+ radius_mean: merkezden noktaya olan uzaklıkları
+ 
+ texture_mean: gri tonlamalı değerlerin standart sapmaları 
+ 
+ perimeter_mean: tümörün çevre ortalaması
+ 
+ area_mean: tümörün ortalama alanı
+ 
+ smoothness_mean: yarıçap uzunluklarındaki yerel değişim
+ 
+ compactness_mean: en küçük kanser hücreleri  (perimeter^2 / area - 1.0)
+ 
+ concavity_mean: kontürün iç bükey kısımlarının şiddeti
+
+ concave.points_mean: kontürün iç bükey kısımlarının sayısı
+ 
+ symmetry_mean: simetri ortaması
+ 
+ fractal_dimension_mean: fraktal boyutu
+
+
+# Veri Setinin Açıklaması
+
+  Meme kanseri, meme dokusundan gelişen kanserdir ve dünya çapında kadınlarda en yaygın kanserdir. Rutin meme kanseri taraması hastalığın teşhis edilmesine ve tedavi edilmesinden önce belirgin semptomlara neden olmasına izin verir.
+
+ Bir makine öğrenimi, kanserin teşhis sürecini otomatikleştirebilirse, doktorların hastalığı erken evrede tanı veya tedavi etmek için daha fazla zaman yaratabilmesini sağlar.
+
+ UCI web sitesinde belirtildiği gibi, “Özellikler, bir göğüs kitlesinin ince iğne aspiratının sayısallaştırılmış görüntüsüyle hesaplanır. Görüntüde bulunan hücre çekirdeklerinin özelliklerini tanımlarlar”. 
+ 
+ Ayrıca FNA, BT taraması veya ultrason monitörleri kılavuzu ile anormal doku veya hücreler alanına çok ince bir iğnenin sokulduğu bir biyopsi prosedürü türüdür. 
+ 
+ Klinisyen Kitlenin malign veya benign( kötü huylu iyi huylu ve iyi huylu tümörler) olup olmadığını belirlemek için memeden küçük bir hücre örneği çıkarır ve hücreleri mikroskop altında inceler.
+
+Meme kanseri tümörlerinin iyi veya kötü huylu olup olmadıklarına içeren  veri seti 569 gözlem ve 11 değişkenden oluşacak şekilde tekrar düzeltilmiştir.
+
+```{r pressure, echo=TRUE, message=FALSE, warning=FALSE}
+data1<- read.csv(file="wdbc.csv",sep=",",header = TRUE,row.names = 1)
+data1<- data1[,1:11]
+
+dim(data1)
+head(data1)
+```
+# Tanımlayıcı İstatistikler
+
+  Aşağıda numerik değişkenlerin tanımlayıcı istatistiklerinin değerleri görülmekedir.
+  
+  Profiling_num yöntemi ile sayısal verilerin ortalamaları standart sapmaları çeyreklik bilgileri medyan çarpıklık ve aralık değerleri hakkında bilgi sahibi olabiliriz.
+  
+  Değişkenlerdeki değişkenlik oldukça fazladır.area_mean ile compacteness_mean arasındaki fark çok büyüktür. Bu durum Temel Bileşen Analizi işlemi uygulanırken ve diğer kümeleme analizlerinde sorun oluşturabileceği için ileri ki analizlerde değişkenliğin sabitlenmesi gerekir yani ileri ki analizlerde **normalleştirme işlemi** uygulanacaktır.
+  
+```{r message=FALSE, warning=FALSE}
+library(funModeling)
+profiling_num(data1)
+```
+ 
+ Hiçbir değişkende NA değerleri bulunmamaktadır.
+ 
+```{r}
+library(naniar)
+gg_miss_var(data1)
+```
+  
+  Veri setinde toplamda 357 iyi huylu tümör verisi,212 tane kötü huylu tümör verisi bulunmaktadır.
+  
+```{r}
+mytable<-with(data1,table(data1$diagnosis))
+mytable
+```
+
+ M = Malign (Kötü Huylu kanser hücrelerinin varlığını gösterir); B = İyi huylu kanser hücresi(yokluğu gösterir)
+ 
+ 357 gözlem den oluşan benign iyi huylu tümörler tüm gözlemlerin % 62,7'sini oluşturur .Bütün gözlemlerin % 37.3'ünü oluşturan 212 gözlemin kötü huylu kanserli hücreleri vardır.
+ 
+ Yüzde alışılmadık derecede büyük; veri seti bu durumda tipik bir tıbbi analiz dağılımını temsil etmez. Tipik olarak, pozitif (malign) tümörü temsil eden az sayıda vakaya karşı negatif temsil eden çok sayıda vaka olacaktır.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+##  frequency table
+diagnosis.table <- table(data1$diagnosis)
+colors <- terrain.colors(2) 
+# Create a pie chart 
+diagnosis.prop.table <- prop.table(diagnosis.table)*100
+diagnosis.prop.df <- as.data.frame(diagnosis.prop.table)
+pielabels <- sprintf("%s - %3.1f%s", diagnosis.prop.df[,1], diagnosis.prop.table, "%")
+
+pie(diagnosis.prop.table,
+  labels=pielabels,  
+  clockwise=TRUE,
+  col=colors,
+  border="gainsboro",
+  radius=0.8,
+  cex=0.8, 
+  main="kanser teşhis sıklığı")
+legend(1, .4, legend=diagnosis.prop.df[,1], cex = 0.7, fill = colors)
+```
+
+## Veri Setinin Düzenlenmesi
+
+```{r}
+data<-data1[,-1]
+head(data)
+```
+
+
+## Korelasyon Matrisilerinin Elde Edilmesi
+
+ Gelişmiş scatter ile değişkenlerin dağılımları ve ilişkileri;korelasyon matris plot ile değişkenlerin ilişkileri hakkında bilgi saihbi olabiliriz.
+ 
+  -fractal_dimension_mean (fraktal boyutu) değişkeni ile tömörün ortalama alan değişkeni(area_mean), texture_mean, radius_mean ve perimeter_mean(tümörün ortalama çevresi) değişkenleri ters yönde ilişkilidir ve bu ilişkilerin gücü oldukça düşüktür.
+  *Yani,fraktal boyutu arttığında (azaldığında), merkezden noktaya olan uzaklıkları, gri tonlamalı değerlerin standart sapmaları,  hücre çekirdeğinin çevresi ve hücre çekirdeğinin alanları azalacaktır (artacaktır).
+ 
+  - Perimeter_mean(tümörlerin çevresi) ile area_mean (tümörlerin alanı ) arasında pozitif yönlü **çok güçlü ilişki** bulunmaktadır.
+ 
+  -Tümörün yarıçap ortalaması(radius_mean) değişkeni ile Perimeter_mean (tümörlerin çevresi) arasında pozitif yönlü **tam ilişki** bulunmaktadır.
+  
+  *Hücre çekirdeğinin alanı arttığında (azaltığında), tümörün yarıçapı, tümörün ortalama çevresi ,kontürün iç bükey kısımlarının şiddeti ve gri tonlamalı değerlerin standart sapmaları artacaktır, (azalacaktır).
+  
+  - concave.points_mean değişkeni ile concavity_mean **pozitif yönlü çok güçlü ilişkiye** sahip oldukları görülmektedir.
+ 
+  - concavity_mean ile smoothless mean değişkenleri arsında **pozitif yönlü Orta derecede ilişki** vardır. 
+
+```{r echo=FALSE}
+require(dplyr)
+cormatris <- as.matrix(data)
+#matris1 <-Hmisc::rcorr(cormatris)
+#corrplot::corrplot(matris1$r, type = "upper", order = "hclust", 
+ #      tl.col = "black", tl.srt = 45)
+ 
+corrplot:: corrplot.mixed(cor(data),tl.srt = 45)
+
+PerformanceAnalytics::chart.Correlation(cormatris,histogram = T)
+```
+
+\newpage
+
+## Veri Setinin Değişiminin Box-Plot ve Histogram Grafiği ile Gösterimi
+
+ -concavity_mean,area_mean,concave.points_mean,fractal_dimension_mean değişkenlerinin veri seti içindeki dağılımı sağdan çarpıktır.
+ -symmetry_mean,smoothness_mean değişkenleri normal dağılmıştır.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(2, 5))
+colnames <- dimnames(data)[[2]]
+for (i in 1:10) {
+    hist(data[,i], main=colnames[i], probability=TRUE, col="gray", border="white")
+    d <- density(data[,i])
+    lines(d, col="red")
+}
+```
+\newpage
+
+
+## Box-Plot
+
+ Veriyi ölçeklendirerek daha güzel bir box plot elde edildi.Her değişkenin aykırı gözlemleri vardır.
+ 
+```{r echo=FALSE}
+par(mfrow=c(1,2))
+boxplot(data)
+dt<-scale(data)
+boxplot(dt,col = "blue",border = "brown")
+
+```
+
+# Temel Bileşenler Analizi
+
+ Temel bileşenler analizinin ana fikri çok değişkenli verinin ana özelliklerini az sayıda değişken ile temsil etmektir.Diğer bir ifade ile küçük bir bilgi kaybını göze alıp değişken boyutunu azaltmaktır.Oluşabilecek bilgi kaybının görece hata ve gürültü ile kıyaslanabilir düzeyde küçük olması beklenir. 
+ 
+ Temel bileşenler yaklaşımı bağımlılık yapısını yok etme ve boyut indirgeme amaçları  için  kullanılmaktadır.  Tanıma,  sınıflandırma,  boyut  indirgenmesi  ve yorumlanmasını  sağlayan,  çok  değişkenli  bir  istatistik  yöntemdir.
+ 
+ PCA Verinin içindeki en güçlü örüntüyü bulmaya çalışır.Verideki  gürültüler, örüntülerden daha güçsüz olduklarından, boyut küçültme sonucunda bu gürültüler temizlenir.
+ 
+ PCA ilk adım olarak kovaryans/korealasyon matris hesabı gerektirir.Varyans  matris,  özdeğerler  ve  özvektörlerin  elde  edilmesi  için kullanılmaktadır.Örneğin Veri iki boyutlu olduğundan kovaryans matris de 2x2boyutlu olacaktır.
+ 
+ 
+ Teknik olarak PCA :
+ 
+  -Değişken gruplarının varyanslarını ifade eden öz değerler ile veri setindeki değişkenleri gruplandırır.
+  
+  -Gruplar arasında en fazla varyansa sahip gruplar en önemli gruplardır kibunlar asal bileşenlerdir.
+  
+ 
+## Pca Uygulanabilirliğini Ölçme ve Bileşen Sayısına Karar Verme
+ 
+ Kaiser, Meyer, Olkin ölçümünü hesaplayarak korelasyonların oldukça yüksek olduğu kesinleştirilebilir.
+ 
+ Veri setinin korelasyon matrisinin KMO değerine baktığımızda 0.79 > 0.5 olduğu görülmektedir.0.79 değeri veri setinin pca( temel bileşenler analizi) için uygun olduğunu göstermektedir.
+
+```{r}
+corr=cor(data, method = "pearson")
+psych:: KMO(corr)
+```
+ 
+  **Ozdegerler ve Ozdeger Vektorlerinin Olusturulmasi (eigenvalues & eigenvectors):**
+
+ R da özdeğer vektörleri negatif yönde oluşturulur. Eksen döndürme işlemi yapıldı.(p<- -p). Her temel bileşen vektörü özellik uzayında bir yön tanımlar.Özdeğer vektörler birleşenleri birbiriyle korelasyonsuzdur.Bileşenlerin değişkenlerden etkilenme durumunu gösterir.
+
+```{r}
+cov_df <- cov(dt)
+ei_df <- eigen(cov_df)
+
+p <- ei_df$vectors[,1:2]
+p <- -p
+```
+
+**Temel Bilesen Sayısını Bulma**
+
+```{r}
+pca <- prcomp(data, scale = TRUE,center = TRUE)
+eigen(cor(data))$ values
+pca_result<-data.frame(predict(pca))
+head(pca_result)
+```
+ 
+ Bileşenlerin Açıklanabilen varyans oranını bulalım.
+ 
+ İlk temel bileşen %55, ikinci temel bileşen %25 ve üçüncü temel bileşen ise %0.09'unu açıklamaktadır.
+ 
+ İlk iki bileşen veri setinde ki varyansın %80 nini açıklamaktadır.
+
+```{r}
+avo<-ei_df$values/sum(ei_df$values)
+round(avo,2)
+```
+
+
+## Görselleştirme
+
+### Scree Plot
+
+ Açıklanan varyans oranları görsel olarak gösterelmiştir.İlk görselde Eigen değerleri 1 den büyük olan ilk iki bileşen vardır.Bu durumda ilk iki bileşen seçilmesi uygundur.
+ 
+  2.görselde her bir bileşenin verideki açıklanabilen varyans yüzdelerini görmekteyiz.3. bileşenden sonra eğim azalmıştır.3 bileşen seçilebilir.
+ 
+```{r}
+
+p1<-fviz_eig(pca,choice='eigenvalue')
+p2<-fviz_eig(pca)
+grid.arrange(p1,p2)
+```
+  
+  Scree plotlarda eigen value ya baktığımızda 2 temel bileşen seçilebilir  üçüncü temel bileşen de alınabilir. 2 temel bileşenle toplam açıklanan varyans %79.97'di.
+  
+  Bileşenlerin önem derecesini summary fonsiyonu ile incelediğimizde PC1 temel bileşeni %54.79, ikinci temel bileşen (PC2)%25.19'sini ve üçüncü temel bileşen ise %0.88'ini açıklamaktadır. 3 temel bileşenle toplam açıklanan varyans %88.78'dir.2 temel bileşen seçilerek verinin  açıklanan toplam  varyansı %79.97'dir.
+
+```{r}
+summary(pca)
+```
+```{r}
+pca$rotation[,c(1,2)]
+
+```
+
+ Birinci temel bilesen, verideki degiskenligi en çok açıklayan bilesendir.
+ 
+  Birinci temel bilesende en belirgin katkısı olan değişkenler :
+  
+   -concavity_mean
+   -compactness_mean
+   -concave.points_mean
+   -perimeter_mean 
+   -area_mean
+   -radius_mean
+   
+  ikinci temel bilesende en belirgin katkısı olan değişkenler :
+  
+  -fractal_dimension_mean 
+  -smoothness_mean  
+  -symmetry_mean
+
+```{r fig.height=8, fig.width=8}
+var <- get_pca_var(pca)
+
+a<-fviz_contrib(pca, "var",axes = 1)
+b<-fviz_contrib(pca, "var",axes = 2)
+
+grid.arrange(a,b,top='Temel Bileşenlere Katkı')
+```
+
+ 
+ smoothness_mean ile texture_mean arasında 90 derecelik açı birbiriyle zıt ilişkide olduğunu gösterir.  
+ 
+ parameter_mean ,radius mean ve area_mean çakışık olması onların arasında pozitif ilişki olduğunu gösterir. Bir tümörün hücresinin alanı arttıkça yarıçapıda çevreside artar.
+
+ Bütün veriler merkez çevresinde toplanmış olarak görülmektedir.
+ 
+ ID'leri:842302,84300903,8910988,89812,8820612 olan gözlemler PCA_1 i açıklayan concativy_mean,perimeter_mean,concave_points, perimeter_mean, area_mean değişkenleri açısından yüksek değerdedir.
+ 
+ ID'leri : 873592,8611555, 8810703,911296202 ve 899987 olan gözlemler PCA_2'yi açıklayan fraktal boyutu ortalaması, simetri ortalaması ,smootheness_mean değişkenleri açısından yüksek değerdedir.
+ 
+ Temel bileşen biri(PCA1) açıklayan değişkenler (perimeter_mean,radius_mean,  area_mean, compactness_mean, concavity_mean ve concave.points_mean) açısından düşük değer alan ve PCA2'yi açıklayan değişkenler (smoothness_mean, symmetry_mean ve fractal_dimention_mean) açısından da düşük değerli olan ID'ler; 865423, 86355, 8610862, 84348301, 815186, 8710441, 866714 ve 955186 ID'leridir.
+ 
+ ID'leri 8610862,915186,88110703,863555,84348301 911296202 ve 865423 olan gözlemler **aykırı gözlemlerdir.**
+ 
+ Diğer gözlemler koordinat ekseninde 0'a oldukça yakın konumlanmışlardır.
+ 
+ 
+```{r fig.height=7, fig.width=10, message=FALSE, warning=FALSE}
+
+
+#install_github("vqv/ggbiplot")
+library(ggbiplot)
+g<-ggbiplot(pca, obs.scale=1, var.scale=1, circle=TRUE)
+b<-fviz_pca_biplot(pca, repel = TRUE,
+                col.var = "#000000", # Variables color
+                col.ind = "#FC4E07"  # Individuals color
+                ,labelsize=3)
+
+grid.arrange(g,b,nrow=1)
+
+```
+\newpage
+
+# Kümeleme Analizi İçin Verinin Ön Hazırlığı
+
+ Kümeleme aynı küme içerisindeki gözlemlerin birbirine benzer, diğer kümelerdeki gözlemlerden farklı olacak şekilde yapılmasıdır. 
+ Benzerlik ve farklılık ölçümleri gözlemlerin birbirinden ayırt edilmesini sağlar ve bu sayede gözlemler gruplara ayrılır.Gözlemlerin (Bireylerin) benzerliğini belirlemek için birbirleri arasındaki uzaklıklar esas alınmaktadır. 
+ 
+ Uzaklığın bir benzerlik ölçütü olarak kullanıldığı durumlarda gözlenen bireyler arasındaki uzaklıklar hesaplanır ve uygulanan kümeleme tekniğine göre bireyler uygun kümelere atanır.
+ 
+ Nicel kümeleme yapmak istendiği durumlarda öklid, manhattan, minkovski , Ölçekli Öklit Uzaklığı, Mahalanobis Uzaklığı, Hotelling T 2 Uzaklığı ve Canberra Uzaklığı kullanılmaktadır.
+ 
+```{r}
+pca_data<-pca_result[,c(1,2)]
+head(pca_data)
+
+```
+
+ Temel bileşen analizi uygulanmış veri setinin Box plot ile incelemesini yapalım.Değişkenlik ortadan kalkmış bulunmaktadır. Aykırı gözlemle bulunmakta ve veriseti çarpıktır.
+
+```{r}
+boxplot(pca_data)
+```
+ 
+ Kümeleme analizine geçmeden önce gözlem noktalarının birbirine olan uzaklıgı hesaplanmalıdır. Veri kümemizdeki bütün degiskenlerde aykırı deger oldugu için bu aykırılıktan en az etkilenecek olan manhattan distance ölçüsü kullanılmalıdır.Scale edilen veriler de bu ölçütler arasında büyük farklılıklar yoktur. 
+ 
+ Mavi renkte olan hücreler bize en uzak olan, yukarıda belirtilmis olan ID'lerdir. Birbirlerine en benzer olan gözlemler kırmızı birbirine en yakın uzaklıktadır, yaklasık 0 degerlerini almıstır.
+
+```{r}
+dist_man=dist(pca_data, method="manhattan")
+```
+
+## Kümelenme Eğiliminin Değerlendirilmesi
+
+### Hopkins İstatistiği 
+
+ Hopkins istatistiği, belirli bir veri setinin tekdüze dağılımdan üretilme olasılığını ölçerek veri kümesinin kümelenme eğilimini değerlendirmek için kullanılır.
+ 
+ Paydada yer alan iki toplam birbirine çok yakın ise H istatistiğinin değeri 0.5 olacaktır. Hopkins istatistiğinin 0’a yakın çıkması durumunda H0 rededilir. Bu da veri setinin önemli ölçüde kümelenebilir bir veri olduğunu gösterir.
+
+ sub_veri= veri setinden alınan veri
+
+ ${H_0}$ = sub_veri uniform dağılıma uyar.
+ 
+ ${H_1}$ = sub_veri uniform dağılıma uymaz.
+
+```{r}
+library(clustertend)
+set.seed(123)
+h_data=hopkins(pca_data, nrow(pca_data)-1)
+h_data
+```
+ 
+ 0.219282 <0.5 , 0.219282  0 yakın olduğu için H0 reddedilir.Veri seti uniform dağılmaz. Buda önemli ölçüde kümelenebilir bir veri olduğunu gösterir. Veri Kümelemeye uygundur.
+ 
+### VAT İstatistiği
+
+ Kümelenme Eğiliminin görsel olarak değerlendirmesidir.
+ 
+ Aynı kümeye ait nesneler ardışık sırada görüntülenir.Sol alt köşede çok net kümelenme gözükürken sağa doğru sağ alt köşede kümelenme belirgin değildir
+
+ 
+
+```{r}
+c<-fviz_dist(dist(pca_data), show_labels = FALSE )+
+  labs(title = "Meme Kanseri Verisi")
+c
+```
+
+### En İyi Küme Algoritması Seçimi
+
+ Hiyerarşik kümeleme yöntemleri ve  Hiyerarşik olmayan kümeleme yöntermlerinde hangi kümeleme yönteminin daha iyi sonuç verdiğini ölçmek için **clValid** komutu kullanılır.
+
+ Connectivitiy sıfıra yakın olsun isteriz. Down ve silhouette değeri 1’e en yakın olanı seçeriz.
+ 
+ -connectivity score değeri 14.9956	 ile hiyerarşik kümeleme yöntemi ve 2 küme seçme kararı verilebilir.
+ -dunn index scoru için 0.0781	değeri bulunan hiyerarşik yöntemi ve 3 kümeleme,
+ -silhouette yöntemi için 0.5068 değeri bulunan hiyerarşik yöntemi ve 2 küme seçme kararı verilebilir.
+
+```{r}
+set.seed(123)
+clmethods <- c("kmeans","pam","hierarchical")
+internal <- clValid(pca_data, nClust = 2:5,
+                  validation = "internal")
+summary(internal)
+```
+
+ APN, ADM ve FOM 0 ile 1 arasında değişir. Küçük değerlerde çıkması yüksek tutarlılıkta kümelenme olduğunun göstergesidir. AD  0 ile sonsuz arasında değer alır. Yine küçük değere sahip olması tercih edilir.
+ 
+ 
+ -APN skoru 0.0166  değeri ile  hiyerarşik yöntemlerde 2 küme seçilebilir.
+ -AD değeri için 2.5069  değeri ile kmeans kümele yöntemi 6 küme,
+ -ADM değeri için 0.3923 değeri ile hiyeraşik yöntemi 2 küme,
+ -FOM değeri için 1.9316 değeri ile clara  yöntemi 6 küme optimum küme sayısı olarak görülebilir.
+
+```{r}
+set.seed(123)
+
+clmethods <- c("kortalamalar","pam","hierarchical","clara")
+sta <- clValid(pca_data, nClust = 2:6, clMethods = clmethods,
+                validation = "stability")
+summary(sta)
+```
+
+\newpage
+
+# K-Means Yöntemi
+
+ Mac Queen tarafından geliştirilmiştir. Bu yöntemde önce araştırmacının ön bilgisine ve tecrübesine dayanarak küme sayısı belirlenir. Sonra her kümenin tipik bir gözlemi seçilir, benzer gözlemler tipik gözlemin etrafında birer birer kümelendirilir. Burada bazı istatistiksel testler kullanılarak her kümeyi oluşturan gözlemlerin değişkenlere göre ortalamalarına bakılır. Güvenilir olması en belirgin üstünlüğüdür. 
+ 
+ Amaç küme içi benzerliği yüksek kümeler arası benzerlik düşük olmalıdır.
+
+ **Kumelerin Gorsellestirilmesi**
+ 
+ Kümeler ayrımı en iyi 2 kümelemede gözükmektedir.
+ 
+```{r}
+set.seed(123)
+k2 <- kmeans(pca_data, centers = 2, nstart = 25)
+k3 <- kmeans(pca_data , centers = 3, nstart = 25)
+k4 <- kmeans(pca_data , centers = 4, nstart = 25)
+k5 <- kmeans(pca_data , centers = 5, nstart = 25)
+
+
+p1 <- fviz_cluster(k2, geom = "point", data = pca_data) + ggtitle("k=2")
+p2 <- fviz_cluster(k3, geom = "point", data = pca_data) + ggtitle("k=3")
+p3 <- fviz_cluster(k4, geom = "point", data = pca_data) + ggtitle("k=4")
+p4 <- fviz_cluster(k5, geom = "point", data = pca_data) + ggtitle("k=5")
+library(gridExtra)
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+\newpage
+
+ **Optimum K-means Kume Sayisinin Belirlenmesi**
+ 
+ •	Küme içi hata minumum olmalı,kümeler arası hata maximum olmalı.
+ •	Küme içindeki gözlemlerin Küme merkezlerine olan uzaklıkları üzerinden yapılan kare toplamı hesabı minumum olmalıdır.
+ •	Farklı sayıdaki k değerlerine göre oluşturulan kümeleme çalışmalarının herbirisi için hesaplanan toplam hata kareler toplam değerleri karşılaştırılarak optimum k belirlenir.
+
+ wss, Silhouette, gap istatistigi, nbclust fonksiyonunda yer alan istatistiklerden elde ettigimiz sonuçlara göre wss ye göre dirsek k = 2 den itibaren kırılmıştır.
+ 
+ Silhoutte width en optimal küme sayısını 2 olarak göstermiştir.
+ 
+ Gap istatistigi en optimal küme sayısını 2 olarak belirlemiştir.
+ 
+ nbclust fonksiyonunda yer alan istatistikler çogunlukla 3 küme nin en optimal küme sayısı olarak belirlemiştir.
+ 
+```{r include=FALSE}
+set.seed(123)
+elbow<-fviz_nbclust(pca_data, kmeans, method = "wss")
+
+scaled_nbclust <- NbClust(pca_data, distance = "manhattan",min.nc = 2, max.nc = 14, method = "ward.D2", index = "all")
+silhouette<-fviz_nbclust(pca_data, kmeans, method = "silhouette")
+
+gap_stat <- clusGap(pca_data, FUN = kmeans, nstart = 25, K.max = 10, B = 50)
+
+gap<-fviz_gap_stat(gap_stat)
+nbclust <- fviz_nbclust(scaled_nbclust) + theme_gray() + ggtitle("NbClust's optimal number of clusters")
+
+```
+
+```{r}
+
+grid.arrange(elbow, silhouette,gap,nbclust, nrow = 2)
+```
+\newpage
+
+```{r}
+set.seed(123)
+final <- kmeans(pca_data, 2, nstart = 25)
+str(final)
+```
+ 
+ -cluster:1 den k ya kadar oluşan  kümeleri ifade eden  vektördür.Veri setimizde hangi ID'lerin hangi kümede olduğunu göstermek istersek cluster birleşine ulaşıp küme değerini çekmiş oluruz.
+
+ -centers: Kümelerin merkezlerini ifade eden matristir.
+
+ - totss : Kare toplamlarının toplamıdır 4542 dir.
+
+ -withinss :Küme içi kareler toplamıdır.1217 birinci kümenin kareler toplamıdır.ikinci kümenin kareler toplamı 1217 dir. 
+
+ -tot.withinss: Tüm küme içi kareler toplamının toplamıdır. Çıktı sonucuna göre bu 2838 tir.
+  
+ -betweenss:Kümeler arası kareler toplamıdır ve bu sayı 2204 dir.
+
+ -size :Her kümede bulunan gözlem sayısı 1. kümede 171 2. Kümede 116 ve 3. kümede 398 dir.
+
+
+ İlk 20 gözlemin hangi kümeye ait olduğu bilgisi aşağıda verilmiştir.
+  
+```{r}
+head(final$cluster,20)
+```
+
+  ID'leri 2 kümeye ayırdık 1.cluster daki gözlemlerin tömörlerin ortalama_yarıçap(radius_mean) ortalaması 18.04555	,texture_mean ortalaması 21.43696	,tümörlerin alan ortalaması (area_mean) 1042.5199	,1. kümeye düşen gözlemlerin tümörlenin çevresel ortalaması 119.75468 dir.
+ 
+  2.kümeye düşen gözlemlerin tömürlerin yarıçap ortalaması (radius_mean) 12.44382	,texture_mean ortalaması 18.36706	,2. kümeye düşen gözlemlerin çevresel ortalaması(perimeter_mean) 80.03098 ve tümötlerin alan ortamasların ortalaması 488.3442 tür.
+
+```{r}
+data %>%
+  mutate(Cluster = final$cluster) %>%
+  group_by(Cluster) %>%
+  summarise_all("mean")
+
+```
+
+\newpage
+
+# K-medoids Yöntemi
+ 
+ K-medoids algoritmasının temeli, verinin çesitli yapısal özelliklerini temsil eden k tane temsilci nesneyi bulma esasına dayanır (Kaufman ve Rousseeuw, 1987).Temsilci nesne medoid olarak adlandırılır ve kümenin merkezine en yakın noktadır. Bir grup nesneyi k tane kümeye bölerken asıl amaç, birbirine çok benzeyen nesnelerin bir arada bulundugu ve farklı kümelerdeki nesnelerin birbirinden benzersiz oldugu kümeleri bulmaktır.k adet temsilci nesne tespit edildikten sonra her bir nesne en yakın oldugu temsilciye atanarak k tane küme olusturulur.Sonraki adımlarda her bir temsilci nesne temsilci olmayan nesne ile degistirilerek kümelemenin kalitesi yükseltilinceye kadar ötelenir.k-medoids yöntemi için *optimum k sayısı silhouette yöntemi* ile belirlenebilir.
+ 
+ Grafikte görüldügü gibi  ortalama silhouette genisligi en yüksek olana göre seçilen k Optimum sayısı 2 dir.
+ 
+```{r}
+fviz_nbclust(pca_data, pam, method= "silhouette")
+
+```
+ 1. kümede 190 gözlem ,2.kümede 379 gözlem bulunmaktadır. Uzaklık matrisinde belirlendigi gibi,aykırı gözlemler net kümelenememiştir.Uç değerlerden varlığı ve verilerin çoğunun merkeze yakın olmasından dolayı görsel bu şekildedir. 3 veya daha fazla küme seçildiği durumda overfitting durumu ile karşılaşılabilir.
+
+```{r}
+set.seed(123)
+data_pam=pam(pca_data,2)
+table(data_pam$clustering)
+fviz_cluster(data_pam,
+             ellipse.type = "norm",geom = 'point' ,data=pca_data)
+```
+
+\newpage
+
+# Hiyerarsik Kumeleme Analizi
+
+ Amaç gözlemleri birbirlerine göre kümelere ayırmaktır. Gözlemler daha fazla sayıda alt kümeye ayrılmak istendiğinde kullanılır.
+ 
+ Hiyerarşik kümeleme iki grupta incelenebilir, bunlar yığılmalı hiyerarşik kümeleme ve bölünmeli hiyerarşik kümelemedir. Yığılmalı hiyerarşik kümeleme verideki her bir gözlemi bir küme olarak düşünür. Birleştirme işlemleri uygulanarak kümeler tek bir küme elde edilinceye kadar devam ettirilir. Bölünmeli hiyerarşik kümelemede,başlangıçta tüm birimlerin bir küme oluşturduğu kabul edilerek, birimleri aşamalı olarak kümelere ayırır. 
+
+## Birlestirici Hiyerarsik Kumeleme 
+
+ *Manhattan Uzaklığın ayarlanması* 
+
+```{r}
+data_manh=dist(pca_data, method="manhattan")
+round(as.matrix(data_manh)[1:2, 1:10], 2)
+```
+ Tüm gözlemlerin ayrı bir küme olarak kabul edilerek daha büyük bir kümede birleştirerek ilerleyen yöntem AGNES yöntemidir.
+ 
+ *Optimal Hiyearşik methodun Uygulanması:*
+ 
+ Optimal Hiyeraşik kümeleme yöntemlerine göre en optimal kümeleme sayısı 2 dir.
+ 
+```{r echo=TRUE}
+set.seed(123)
+# function to compute total within-cluster sum of squares
+elbow <- fviz_nbclust(pca_data, FUN = hcut, method = "wss", k.max = 24) + ggtitle("The Elbow Method") + theme_gray()
+# Gap Statistics
+gap <- fviz_nbclust(pca_data, FUN = hcut, method = "gap_stat", k.max = 24) + ggtitle("Gap Statistics") + theme_gray()
+# The Silhouette Method
+silhouette1<- fviz_nbclust(pca_data, FUN = hcut, method = "silhouette", k.max = 24) + ggtitle("Silhouette Method") + theme_gray()
+grid.arrange(elbow,gap,silhouette1)
+```
+ 
+ 
+## Birlestirici Methodlarin Karsilastirilmasi
+
+ Agnes fonksiyonu bize birleştiricilik katsayısını oluşturur. Bu oluşturulan katsayı ile oluşturulacak küme yapısının gücünü ölçebiliriz. 
+
+ Aşağıdaki çıktıya göre ac istatistiği katsayısı 0.9850311 dir.
+ 
+```{r}
+
+hc2 <- agnes(data_manh, method = "complete")
+hc2$ac
+```
+
+ Aşağıdaki fonksiyon bize en iyi birleştirici yöntemi seçmemizi sağlar.Elde edilen ac istatistiklerini karşılaştırarak buluruz.
+ 
+ Her bir  method için agnes fonksiyonu çalıştırılır ve her bir method için ac istatistiği elde edilip kümeler arası karşılaştırma yapabiliriz. Görüldüğü gibi en iyi ac istatistik değeri ward methoduna ait 0.9965290  ,hiyearşik kümeleme yönteminde ward methodu seçebiliriz.
+
+```{r}
+m <- c("average", "single","complete", "ward")
+names(m) <- c("average", "single","complete", "ward")
+
+
+ac <- function(x) {
+
+  agnes(data_manh, method = x)$ac 
+  
+}
+
+sapply(m, ac)
+
+```
+
+ Kojenetik değeri ise 0.75'den büyük olması veri setini daha iyi yansıttığını göstermektedir. Ne kadar yüksek bir değer alırsa veri seti o kadar iyi yansıtılmış demektir.
+ 
+ Burada ise 0.60 değerini almış yani veri setini en iyi method kullanışmasına rağmen veri setini iyi yansıtamadığı görülmektedir.1.gruba 231 gözlem, 2.gruba 338 gözlem düşmektedir.
+ 
+```{r}
+hc2 <- agnes(data_manh, method = "complete")
+hc3 <- agnes(data_manh, method = "ward")
+grup_veri=cutree(hc3, k=2)
+table(grup_veri)
+```
+ 
+ Kojenetik degeri ise 0.75’den büyük olması veri setini daha iyi yansıttıgını göstermektedir.0.60 veri setini iyi yansıtmaz.
+```{r}
+coph_veri=cophenetic(hc3)
+cor(data_manh,coph_veri)
+```
+
+*Veri setinde gözlemler hangi grupta görselleştirmesi*
+
+ Aşağıda gözlemlerin hangi kümede olduğunu gösteren grafik bulunmaktadır.
+ 
+```{r echo=TRUE}
+fviz_dend(hc3, k = 2, 
+          cex = 0.5,
+          k_colors = c("#2E9FDF", "#00AFBB", "#FC4E07"),
+          color_labels_by_k = TRUE, 
+          rect = TRUE 
+)
+```
+
+## Bolumleyici Hiyerarsik Kumeleme 
+
+Bölümleyici yöntemin bölümleyicilik katsayısısı 0.982939 dur.
+
+```{r}
+hc4 <- diana(data_manh)
+hc4$dc
+
+pltree(hc4, cex = 0.6, hang = -1)
+```
+\newpage
+
+# Model Tabanlı Kümeleme
+ 
+ Model-tabanlı kümeleme metotları, verilen veri ve bazı matematiksel modeller arasında uygunluğu optimize etmeye çalışır. 
+
+ Model temelli kümeleme, verilerin bir model tarafından oluşturulduğunu varsayar ve veriden orijinal modele erişmeye çalışır.  Erişilen model ile kümeler tanımlanır. Verilerin iki veya daha fazla kümenin karışımı olan bir dağılımdan geldiğini düşünen model tabanlı kümeleme bir alternatif kümelemedir (ChrisFraleyve AdrianE. Raftery, 2002 ve 2012).
+ 
+ k-ortalamadan farklı olarak, model tabanlı kümeleme, her veri noktasının her bir kümeye ait olma olasılığına sahip olduğu bir atama kullanır.
+
+ Bu analizde mclust paketi kullanılarak analiz yapılarak ve kaç küme olması gerektiğine karar verilmiştir.
+ 
+ Mclust yöntemine göre iki küme oluşturukmuştur , birinci kümeye 253 ve ikinci kümeye 316 gözlem olarak kümelemiştir.
+  
+ Bayesian Information Criteria (BIC)'nın en küçük olduğu modeli seçer. 569 gözlem için BIC değerinin küçük model seçilerek -4510.449 olarak bulunmuştur.
+
+ 
+```{r}
+set.seed(123)
+model_base = mclust:: Mclust(pca_data)
+summary(model_base )
+```
+
+  Veri setinin ;
+  
+  -duyarlılığı( 59/(59+298)= 0.16526 ) %16.5
+  -doğruluk değeri((59+18)/(58+194+298+18)=0.135) %13.5'dir. 
+  -Seçiciliği (18/(194+18)= 0.085) %8.5'dir. 
+  
+  Bu değerlere göre kümeleme için model base yeterli bir yöntem değildir.
+
+```{r}
+table(model_base$classification, data1$diagnosis)
+```
+
+ Veri setindeki her gözlemin bütün kümeye ait olma olasılıklarının toplamı 1’dir.İlk 3 gözlemin hangi kümeye ait olduğu bilgisi aşağıda gösterilmiştir. 
+ 
+- 842302 ID'li gözlemin 1. kümede olma olasılığı %100 dür.
+- 842517 ID'li gözlemin 1. kümede olma olasılığı %99 dur ve sıfıra oldukça yakın olasılıklarla ikinci kümeye aittir.
+- 84300903 ID'li gözlemin 1. kümede olma olasılığı %100 dür .
+
+```{r}
+head(model_base$z,3)
+```
+ ilk 3  gözlemin satır toplamı verilmistir.her gözlemin kümelere atanma degerlerinin toplamının 1 oldugunu buradan görebiliriz.
+
+```{r}
+rowSums(head(model_base$z,3))
+```
+ Üstteki kodda bulduğumuz değerlerin yüksek olasılıkla hangi kümedeyse o kümeye atanmıs en son hali aşağıda   bulunmaktadır.
+ 
+```{r}
+head(model_base$classification,3)
+```
+ Model Temelli Kümeleme Parametrelerinin kestirimi:
+ 
+ Kümeler için İlk tanımlayıcı hacim,ikincisi şekil, üçüncüsü yönelim anlamına gelir. 
+
+ Hacim-Şekil-Yönelim E(equal): Eşit / V(vary): (değişik) / I(identity): benzer
+ 
+ İlk grafik en optimal küme sayısını BIC değerleri hesaplanmış şekilde gösterir.Büyük bir BIC puanı, karşılık gelen model için güçlü kanıtlar olduğunu gösterir.
+ 
+ En optimal küme sayısı 2 dir en iyi model VVI yani tüm kümelerin hacimlerinin değişken olduğu (V), kümelerin şekillerinin değişebileceği (V) ve yönelimin (koordinat eksenleri) benzer olduğunu  (I) belirtir. 
+ 
+ İkinci grafik kümelenmeyi gösterir. 
+ 
+ 3. grafik kümelenme belirsizliğini göstermektedir.Görseldeki mavi ve yuvarlak büyük noktalar  potansiyel gürültü
+gözlemleridir,kümeye çok küçük olasılıklarla dahil edildigini gösterir.
+
+
+```{r}
+
+a<-fviz_mclust(model_base, "BIC", palette = "jco",size=1)
+
+b<-fviz_mclust(model_base, "classification", geom = "point", 
+            pointsize = 1, palette = "jco")
+# Classification uncertainty
+c<-fviz_mclust(model_base, "uncertainty", palette = "jco")
+grid.arrange(a,b,c,nrow=2)
+```
+\newpage
+
+# Yoğunluk Temelli Kümeleme
+
+ Ester ve ark. (1996) gürültü ve aykırı değerler içeren bir veri setinin herhangi bir şekildeki kümelerini tanımlamak için geliştirmişlerdir.
+ 
+ Eğer gözlemler birbirine yoğunca konumlanmış alanda yakın ise bunları bir kümeye alma mantığına dayanır.eps erişilebilirlik uzaklığı çevre ,.minpoints o belirlenen alandaki gözlem birimi sayısını ifade eder,belirlenmiş alanda ki minumum gözlem sayısını ifade eder.
+ 
+ *Avantajları*
+ 
+ - k-means’den farklı olarak, küme sayısının belirtilmesine gerek yoktur.
+ 
+ -Düzensiz şekilli verilerde k-ortalama kümeleme yöntemi  güçlük çekmektedir. Herhangi bir küme şeklini bulabilir. Kümenin dairesel olması gerekmez. 
+ 
+ -Aykırı değerleri belirleyebilir.
+ 
+ 
+ DBSCAN algoritması “kümeler” ve “gürültü” kavramını temel alır. Ana fikir, bir kümenin her noktası için, belirli bir yarıçapın komşusunun en az minimum sayıda nokta içermesi gerektiğidir.
+ 
+ DBSCAN için iki önemli parametre gereklidir: epsilon (“eps”) ve minimum noktalar (“MinPts”). epsparametresi, x noktasının çevresindeki komşuların yarıçapını tanımlar. Buna x'inepsilon komşuluğu denir.Grafiklerde Güçlü bir bükülme olan yer epsilon için uygun degerlerdir. Çok küçük seçildigi durumda herhangi bir kümeye atanacak veri gürültü olarak tanımlanabilir. 
+ 
+ MinPtsparametresi, "eps" yarıçapı içindeki minimum komşu sayısıdır."Kaç komsuya sahip olursa bir küme olusturur?"
+sorusuna cevap veren parametredir. Sonucunda çekirdek nokta saptanmıs olacak. Komsu sayısı minimum
+nokta az ise sınır nokta olarak tanımlanır,en az 3 seçilir. Veri setinin büyüklügüne göre değişir.
+
+ Eğer bir nokta ne çekirdek ne de sınır nokta olarak tanımlanmıyorsa, *gürültü* yada *aykırı* değer olarak
+tanımlanır.
+
+ Kısaca eps parametresi == erişilebilirilk uzaklığı ; MinPts == belirlenen alandaki gözlem birimi sayısı
+ 
+ Birinci kümeye 107 gözlem düşmüş, ikinci kümede 366 tane gözlem vardır. 1.kümenin 58 tanesi sınır gözlemdir.İkinci kümenin 27 tanesi sınır gözlemdir.
+
+```{r}
+set.seed(123)
+density_data <- fpc:: dbscan(pca_data, eps = 0.6, MinPts = 10)
+density_data
+```
+ 
+ Solda 1 den 2 ye kadar olan değerler kümeleri ifade eder. 0 değeri bir kümeye dahil olamayan gözlemlerin değeridir,gürültü değerleridir. 1.kümeye düşen İyi Huylu tümörlerin sayısı 2 iken , 2.kümeye düşen iyi huylu tümörlerin sayısı 322 tir. 
+ 
+ 1.kümeye düşen kötü huylu tümörlerin sayısı 105,2.kümeye düşen tümörlerin sayısı 44 tür.
+
+```{r}
+table(density_data$cluster,data1$diagnosis)
+```
+ Veri setinde bütün gözlemler birbirlerine çok yakın oldugu için epsilon ve minimum nokta degeri uyumlu olması gerekir.
+ 
+ Birinci kümende her iki temel bilesen tarafından açıklanabilen gözlemler olduğu görülmektedir. Her iki temel bileşen için de yüksek değerler almıstır. 
+
+Ikinci küme birinci kümeye göre birinci temel bilesenle daha az ikinci temel bilesenle daha cok açıklanmıstır.
+
+Aykırı gözlemlerde net bir şekilde görülmektedir.
+
+
+```{r}
+factoextra:: fviz_cluster(density_data, data = pca_data, stand = FALSE,
+ellipse = FALSE, show.clust.cent = FALSE,
+geom = "point",palette = "jco", ggtheme = theme_classic())
+```
+  Veri setinin ;
+  
+  -duyarlılığı( 59/(59+298)= 0.16526 ) %16.5
+  -doğruluk değeri(51+82)/(51+82+306+130)=0.2337 %23.37 dir.
+  -Seçiciliği 82/(130+82)= 0.38679 %38.67 dir. 
+  
+  Bu değerlere göre kümeleme için yoğunluk temelli kümeleme yeterli bir yöntem değildir.
+
+```{r}
+table(density_data$isseed,data1$diagnosis)
+```
+
+
+## Küme Geçerliliği
+
+  Veri setinde uç deger fazla olduğu için manhattan uzaklık ölçütü kullanıldı.
+
+ Hopkins istatistiği ile veri setinin tekdüze dağılımdan üretilme olasılığı ölçüldü ve veri kümesinin kümelenme eğilimi değerlendirildi ,veri seti kümülenebilir sonucuna varıldı.
+ 
+ En Iyi Küme Algoritması Seçiminde Hiyerarsik olmayan ve hiyerarsik kümeleme yöntemlerinde hangi kümeleme yönteminin daha iyi sonuç verdigini ölçmek için clValid komutu kullanıldı.
+ 
+ Internal sonucunda 2 küme seçilerek hiyerarsik yöntemler uygulanmalı sonucu çıkmıştır. Duraganlık ölçümlerinin sonuçlarına bakarak elde edilen AD/APN/ADM/FOM degerlerinin 0’a yakın olması optimum sonuca yönlendirir.APN degeri için 2 küme,AD degeri için pam yöntemi 6 küme,FOM degeri clara yöntemi 6 küme optimum görülebilir sonucu vermiştir.
+ Bu durumda  hiyerarsik yöntemler seçilmeli 2 küme kullanılabilir sonucuna varıldı.
+ 
+ **En Optimal Küme Sayısını Belirleme** optimum küme sayısının belirlenmesi için iki fonksiyon kullanılabilir. Analizde fviz_nbclust() fonksiyonu kullanılmıştır.
+ 
+ -Elbow Yöntemi:
+ 
+ k-ortalamaları kümeleme gibi bölümleme yöntemlerinin ardındaki temel düşünce, toplam küme içi değişimin en aza indirgenmesidir. 
+ 
+ 
+ -Ortalama silhouette Yöntemi:
+ 
+ Kümelemenin kalitesini ölçer. Yani, her nesnenin kendi kümesinde ne kadar iyi olduğunu belirler. Yüksek ortalama silhouettegenişliği iyi bir kümelenmeyi gösterir.
+ 
+ 
+ -GAP Istatistigi:
+ 
+ Gapistatistiği, farklı k değerleri için küme içi varyasyon içindeki toplamı, verilerin sıfır referans dağılımı altında beklenen değerleriyle karşılaştırır. Optimal kümelerin tahmini, boşluk istatistiği maksimize eden değer olur Böylece kümeleme yapısının noktaların rasgele düzgün dağılımdan çok uzakta olduğu anlamına gelir. 
+ 
+ 
+ 
+ Hiyearşik yöntemde ac istatistiğine bakılarak en uygun birleştirici yöntemi seçmemizi sağlamış, en uygun yöntem ward yöntemi ve 2 kümeleme çıkmıştır.
+ 
+ Kmeans hiyearşik olmayan kümelemede en optimal kümeleme sayısı 2 olarak belirlenmiştir.
+ 
+ Model tabanlı ve yogunluk tabanlı kümelemelerde en optimal küme sayısı sonucu 2 çıkmıştır.Pam algoritması ve 2 küme ile analiz yapmıştır.
+ 
+\newpage
+
+# Finalde Elde Edilen Kümelerin Tanımlayıcı Istatistikleri Ve Yorumlanması
+
+finalde kümeleme hiyearşik yöntem de en iyi wards methodu ve 2 kümeleme en iyi kümelemenin yapılacağı sonucuna varılmıştır.
+
+```{r}
+res.hc <- data %>%
+  scale() %>%
+  eclust("agnes", k = 2, graph = FALSE)
+
+```
+
+ ID'leri 2 kümeye ayırdık 1.cluster daki gözlemlerin tömörlerin ortalama_yarıçap(radius_mean) ortalaması 16.65071	,texture_mean ortalaması 20.53825	,tümörlerin alan ortalaması (area_mean) 908.8392	,1. kümeye düşen gözlemlerin tümörlenin çevresel ortalaması 110.15410 dir.
+ 
+  2.kümeye düşen gözlemlerin tömürlerin yarıçap ortalaması (radius_mean) 12.57166		,texture_mean ortalaması 18.51991	,2. kümeye düşen gözlemlerin çevresel ortalaması(perimeter_mean) 80.75835	 ve tümötlerin alan ortamasların ortalaması 498.3347 tür.
+
+```{r}
+data %>%
+  mutate(Cluster = res.hc$cluster) %>%
+  group_by(Cluster) %>%
+  summarise_all("mean")
+
+```
+
+
+ Silhouette katsayısı: bir gözlemin ne kadar iyi kümelendirildiğini ölçer ve kümeler arasındaki ortalama mesafeyi tahmin eder. Silhouette grafiği: bir kümedeki her noktanın komşu kümedeki noktalara ne kadar yakın olduğunun bir ölçüsünü görüntüler. 1 civarında bir değer alması iyi kümelendiğini 0 civarında değer alması iki küme arasında konumlandığını negatif değer alması büyük olasılıkla yanlış kümede konumlandığını gösterir. 
+ 
+ 2.kümede olanlar  en doğru kümelenenlerdir.
+
+```{r}
+fviz_silhouette(res.hc)
+
+```
+
+
+## Verinin Son Hali
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+data2<- read.csv(file="wdbc.csv",sep=",",header = TRUE)
+```
+ 
+ Orjinal veriye hiyearşik yöntemle kümelenen verinin küme bilgilerini orjinal veri setine eklemiş olduk.
+ 
+ Id numarası 842302 olan gözlem kötü huylu olan tümörünün ortalama yarıçapı  17.990 texture mean değeri 10.38 dir ve 1.kümeye atanmıştır.
+ 
+ Id numarası 8210653 olan gözlemin iyi huylu olan tümörünün ortalama yarıçapı  13.080  alan ortalaması değeri 520.0 dir ve 1.kümeye atanmıştır.
+
+```{r}
+data2 %>%
+  mutate(Cluster = res.hc$cluster) %>%
+  group_by(Cluster) %>%
+  select(id,diagnosis,Cluster,radius_mean,texture_mean,area_mean,compactness_mean)
+```
+
+
+
+
+
+
+
+
+
